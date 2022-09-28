@@ -33,6 +33,12 @@ elseif (CMAKE_C_COMPILER_ID STREQUAL "AppleClang")
   set(conan_compiler "apple-clang")
 endif()
 
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+  set(conan_os "Macos")
+else()
+  set(conan_os ${CMAKE_SYSTEM_NAME})
+endif()
+
 string(REGEX MATCH "^([0-9]+)\\.?.*$" COMPILER_VERSION_MAJOR ${CMAKE_C_COMPILER_VERSION})
 set(COMPILER_VERSION_MAJOR ${CMAKE_MATCH_1})
 
@@ -43,7 +49,7 @@ if (CMAKE_CROSSCOMPILING)
                       SETTINGS_BUILD
                         ${settings}
                       SETTINGS_HOST
-                        os=${CMAKE_SYSTEM_NAME}
+                        os=${conan_os}
                         compiler=${conan_compiler}
                         compiler.version=${COMPILER_VERSION_MAJOR}
                       ENV_HOST
@@ -59,7 +65,7 @@ else()
                       REMOTE conancenter
                       SETTINGS
                         ${settings}
-                        os=${CMAKE_SYSTEM_NAME}
+                        os=${conan_os}
                         compiler=${conan_compiler}
                         compiler.version=${COMPILER_VERSION_MAJOR}
                       ENV
