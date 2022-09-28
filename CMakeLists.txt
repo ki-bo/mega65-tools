@@ -9,6 +9,12 @@ include(cmake/conan_setup.cmake)
 find_package(libusb)
 find_package(PNG)
 
+if (MSVC)
+    add_compile_options(/W4)
+else()
+    add_compile_options(-Wall)
+endif()
+
 add_executable(m65
     src/tools/m65.c
     src/tools/m65common.c
@@ -21,11 +27,9 @@ add_executable(m65
     src/tools/fpgajtag/process.c
 )
 
+if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+  target_compile_definitions(m65 PRIVATE WINDOWS)
+  target_link_libraries(m65 wsock32 ws2_32)
+endif()
 target_include_directories(m65 PRIVATE include)
 target_link_libraries(m65 libusb::libusb PNG::PNG)
-
-if (MSVC)
-    add_compile_options(/W4)
-else()
-    add_compile_options(-Wall)
-endif()
