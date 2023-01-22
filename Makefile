@@ -7,6 +7,8 @@ OS := $(shell uname)
 ifeq ($(OS), Darwin)
 include conanbuildinfo_macos_intel.mak
 include conanbuildinfo_macos_arm.mak
+else
+include conanbuildinfo.mak
 endif
 
 #COPT=	-Wall -g -std=gnu99 -fsanitize=address -fno-omit-frame-pointer -fsanitize-address-use-after-scope
@@ -30,6 +32,10 @@ MACARMCOPT:=  $(COPT) -target arm64-apple-macos11 \
 COPT+=`pkg-config --cflags-only-I --libs-only-L libusb-1.0 libpng` -mno-sse3 -march=x86-64
 WINCC=	x86_64-w64-mingw32-gcc
 WINCOPT=$(COPT) -DWINDOWS -D__USE_MINGW_ANSI_STDIO=1
+WINCOPT+= $(addprefix -I, $(CONAN_INCLUDE_DIRS)) \
+          $(addprefix -D, $(CONAN_DEFINES)) \
+          $(addprefix -L, $(CONAN_LIB_DIRS)) \
+          $(addprefix -l, $(CONAN_LIBS)) \
 
 OPHIS=	Ophis/bin/ophis
 OPHISOPT=	-4 --no-warn
@@ -289,6 +295,9 @@ conanbuildinfo_macos_arm.mak: conanfile.txt conan/*
 	conan install conanfile.txt --build=missing -pr:b=default -pr:h=default -pr:h=conan/profile_macos_11_arm
 	sed 's/CONAN_/MAC_ARM_CONAN_/g' conanbuildinfo.mak > conanbuildinfo_macos_arm.mak
 	rm conanbuildinfo.*
+
+conanbuildinfo.mak: conanfile.txt conan/*
+	conan install conanfile.txt --build=missing -pr:h=default -pr:h=conan/profile_win_host -pr:b=conan/profile_win_build
 
 ifndef USE_LOCAL_CC65
 $(CC65):
