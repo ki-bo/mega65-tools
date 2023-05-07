@@ -321,12 +321,19 @@ test.exe: win_build_check conan_win $(GTESTFILESEXE)
 ## Prerequisites
 ##
 conan_mac: conanfile.txt conan/profile_macos_10.14_intel conan/profile_macos_11_arm Makefile
-	mkdir -p $(PKGDIR)/macos_intel $(PKGDIR)/macos_arm
+	@mkdir -p $(PKGDIR)/macos_intel $(PKGDIR)/macos_arm
 	
 	@conan_version=$$(echo `conan --version` | sed "s/^Conan version \([[:digit:]]*\).*/\1/"); \
 	if [[ "$${conan_version}" -eq "1" ]]; then \
+		echo "Conan version 1.x detected"; \
 		conan_intel_flags="-if $(PKGDIR)/macos_intel"; \
 		conan_arm_flags="-if $(PKGDIR)/macos_arm"; \
+	else \
+		echo "Conan version 2.x detected"; \
+		if [[ ! -e "$${HOME}/.conan2/profiles/default" ]]; then \
+			echo "No default conan profile available - detecting default settings"; \
+			conan profile detect; \
+		fi; \
 	fi; \
 	conan install $${conan_intel_flags} -of $(PKGDIR)/macos_intel conanfile.txt --build=missing -pr:b=default -pr:h=default -pr:h=conan/profile_macos_10.14_intel; \
 	conan install $${conan_arm_flags} -of $(PKGDIR)/macos_arm conanfile.txt --build=missing -pr:b=default -pr:h=default -pr:h=conan/profile_macos_11_arm
@@ -336,16 +343,25 @@ conan_mac: conanfile.txt conan/profile_macos_10.14_intel conan/profile_macos_11_
 	$(eval MACARMCOPT   := $(MACCOPT) -target arm64-apple-macos11 \
 	                       `pkg-config --cflags --libs $(PKGDIR)/macos_arm/libpng.pc $(PKGDIR)/macos_arm/libusb-1.0.pc $(PKGDIR)/macos_arm/zlib.pc`)
 
-conan_win: conanfile.txt conan/profile_linux_to_win Makefile
-	mkdir -p $(PKGDIR)/win
-	echo "toolchain=/usr/x86_64-w64-mingw32" > conan/profile_mingw-w64
-	echo "cc_version=`$(WINCC) -dumpversion | sed 's/^\([[:digit:]]\+\(\.[[:digit:]]\+\)\?\).*$$/\1/'`" >> conan/profile_mingw-w64
+conan_win: conanfile.txt conan/profile_linux_to_win conan/profile_linux_to_win_1 Makefile
+	@mkdir -p $(PKGDIR)/win
 
-	conan_version=$$(echo `conan --version` | sed "s/^Conan version \([[:digit:]]*\).*/\1/"); \
+	@conan_version=$$(echo `conan --version` | sed "s/^Conan version \([[:digit:]]*\).*/\1/"); \
 	if [[ "$${conan_version}" -eq "1" ]]; then \
-		conan_flags="-if $(PKGDIR)/win"; \
+		echo "Conan version 1.x detected"; \
+		echo "toolchain=/usr/x86_64-w64-mingw32" > conan/profile_mingw-w64; \
+		echo "cc_version=`$(WINCC) -dumpversion | sed 's/^\([[:digit:]]\+\(\.[[:digit:]]\+\)\?\).*$$/\1/'`" >> conan/profile_mingw-w64; \
+		conan install -if $(PKGDIR)/win -of $(PKGDIR)/win conanfile.txt --build=missing -pr:b=default -pr:h=conan/profile_linux_to_win_1; \
+	else \
+		echo "Conan version 2.x detected"; \
+		echo "{% set toolchain = \"/usr/x86_64-w64-mingw32\" %}" > conan/profile_mingw-w64; \
+		echo "{% set cc_version = \"`$(WINCC) -dumpversion | sed 's/^\([[:digit:]]\+\(\.[[:digit:]]\+\)\?\).*$$/\1/'`\" %}" >> conan/profile_mingw-w64; \
+		if [[ ! -e "$${HOME}/.conan2/profiles/default" ]]; then \
+			echo "No default conan profile available - detecting default settings"; \
+			conan profile detect; \
+		fi; \
+		conan install -of $(PKGDIR)/win conanfile.txt --build=missing -pr:h=conan/profile_linux_to_win; \
 	fi; \
-	conan install $${conan_flags} -of $(PKGDIR)/win conanfile.txt --build=missing -pr:b=default -pr:h=conan/profile_linux_to_win; \
 	$(eval WINCOPT := $(WINCOPT) -DWINDOWS -D__USE_MINGW_ANSI_STDIO=1 \
 	                  `pkg-config --cflags --libs $(PKGDIR)/win/libpng.pc $(PKGDIR)/win/libusb-1.0.pc $(PKGDIR)/win/zlib.pc`)
 
@@ -707,6 +723,13 @@ $(UTILDIR)/remotesd.prg:       $(UTILDIR)/remotesd.c $(CC65) $(MEGA65LIBC)
 $(TOOLDIR)/ftphelper.c:	$(UTILDIR)/remotesd.prg $(TOOLDIR)/bin2c
 	$(TOOLDIR)/bin2c $(UTILDIR)/remotesd.prg helperroutine $(TOOLDIR)/ftphelper.c
 
+$(UTILDIR)/remotesd_eth.prg:       $(UTILDIR)/remotesd_eth.c $(UTILDIR)/checksum.s $(UTILDIR)/ip_checksum_recv.s $(CC65) $(MEGA65LIBC)
+	$(CL65ONLY) --config $(UTILDIR)/remotesd_eth_cl65.cfg -I $(SRCDIR)/mega65-libc/cc65/include -O -g -o $*.prg --listing $*.list --mapfile $*.map --add-source $(SRCDIR)/mega65-libc/cc65/src/memory.c $(SRCDIR)/mega65-libc/cc65/src/random.c $(SRCDIR)/mega65-libc/cc65/src/debug.c $(SRCDIR)/mega65-libc/cc65/src/time.c $(SRCDIR)/mega65-libc/cc65/src/hal.c $(SRCDIR)/mega65-libc/cc65/src/targets.c $(UTILDIR)/checksum.s $(UTILDIR)/ip_checksum_recv.s $<
+
+
+$(TOOLDIR)/ftphelper_eth.c:	$(UTILDIR)/remotesd_eth.prg $(TOOLDIR)/bin2c
+	$(TOOLDIR)/bin2c $(UTILDIR)/remotesd_eth.prg helperroutine_eth $(TOOLDIR)/ftphelper_eth.c
+
 define LINUX_AND_MINGW_GTEST_TARGETS
 $(1): $(2)
 	$$(CXX) $$(COPT) $$(GTESTOPTS) -Iinclude $(LIBUSBINC) -o $$@ $$(filter %.c %.cpp,$$^) $(TOOLDIR)/version.c -lreadline -lncurses -lgtest_main -lgtest -lpthread $(3)
@@ -719,9 +742,16 @@ MEGA65FTP_SRC=	$(TOOLDIR)/mega65_ftp.c \
 		$(TOOLDIR)/m65common.c \
 		$(TOOLDIR)/logging.c \
 		$(TOOLDIR)/ftphelper.c \
+		$(TOOLDIR)/ftphelper_eth.c \
 		$(TOOLDIR)/filehost.c \
 		$(TOOLDIR)/diskman.c \
-		$(TOOLDIR)/bit2mcs.c
+		$(TOOLDIR)/bit2mcs.c \
+		$(TOOLDIR)/etherload/etherload_common.c \
+		$(TOOLDIR)/etherload/ethlet_dma_load.c \
+		$(TOOLDIR)/etherload/ethlet_all_done_basic2.c
+
+MEGA65FTP_HDR=	$(TOOLDIR)/etherload/ethlet_dma_load_map.h \
+		$(TOOLDIR)/etherload/ethlet_all_done_basic2_map.h
 
 # Gives two targets of:
 # - gtest/bin/mega65_ftp.test
@@ -733,13 +763,13 @@ $(eval $(call LINUX_AND_MINGW_GTEST_TARGETS, $(GTESTBINDIR)/mega65_ftp.test, $(G
 # - gtest/bin/bit2core.test.exe
 $(eval $(call LINUX_AND_MINGW_GTEST_TARGETS, $(GTESTBINDIR)/bit2core.test, $(GTESTDIR)/bit2core_test.cpp $(TOOLDIR)/bit2core.c Makefile, -fpermissive))
 
-$(BINDIR)/mega65_ftp: $(MEGA65FTP_SRC) $(TOOLDIR)/version.c include/*.h Makefile
+$(BINDIR)/mega65_ftp: $(MEGA65FTP_SRC) $(MEGA65FTP_HDR) $(TOOLDIR)/version.c include/*.h Makefile
 	$(CC) $(COPT) -D_FILE_OFFSET_BITS=64 -Iinclude $(LIBUSBINC) -o $(BINDIR)/mega65_ftp $(MEGA65FTP_SRC) $(TOOLDIR)/version.c $(BUILD_STATIC) -lreadline -lncurses -ltinfo -Wl,-Bdynamic -DINCLUDE_BIT2MCS
 
-$(BINDIR)/mega65_ftp.static: $(MEGA65FTP_SRC) $(TOOLDIR)/version.c include/*.h Makefile ncurses/lib/libncurses.a readline/libreadline.a readline/libhistory.a
+$(BINDIR)/mega65_ftp.static: $(MEGA65FTP_SRC) $(MEGA65FTP_HDR) $(TOOLDIR)/version.c include/*.h Makefile ncurses/lib/libncurses.a readline/libreadline.a readline/libhistory.a
 	$(CC) $(COPT) -Iinclude $(LIBUSBINC) -mno-sse3 -o $(BINDIR)/mega65_ftp.static $(MEGA65FTP_SRC) $(TOOLDIR)/version.c ncurses/lib/libncurses.a readline/libreadline.a readline/libhistory.a -ltermcap -DINCLUDE_BIT2MCS
 
-$(BINDIR)/mega65_ftp.exe: win_build_check $(MEGA65FTP_SRC) $(TOOLDIR)/version.c include/*.h conan_win Makefile
+$(BINDIR)/mega65_ftp.exe: win_build_check $(MEGA65FTP_SRC) $(MEGA65FTP_HDR) $(TOOLDIR)/version.c include/*.h conan_win Makefile
 	$(WINCC) $(WINCOPT) -D_FILE_OFFSET_BITS=64 -g -Wall -Iinclude $(LIBUSBINC) -I$(TOOLDIR)/fpgajtag/ -o $(BINDIR)/mega65_ftp.exe $(MEGA65FTP_SRC) $(TOOLDIR)/version.c -lusb-1.0 $(BUILD_STATIC) -lwsock32 -lws2_32 -lz -Wl,-Bdynamic -DINCLUDE_BIT2MCS
 
 $(BINDIR)/mega65_ftp_intel.osx: $(MEGA65FTP_SRC) $(MEGA65FTP_HDR) $(TOOLDIR)/version.c include/*.h conan_mac Makefile
@@ -769,7 +799,7 @@ M65DBG_INCLUDES = -Iinclude $(LIBUSBINC)
 M65DBG_LIBRARIES = -lpng -lpthread -lusb-1.0 -lz $(M65DEBUG_READLINE)
 
 $(BINDIR)/m65dbg:	$(M65DBG_SOURCES) $(M65DBG_HEADERS) Makefile
-	$(CC) $(COPT) $(M65DBG_INCLUDES) -o $(BINDIR)/m65dbg $(M65DBG_SOURCES) $(M65DBG_LIBRARIES)
+	$(CC) $(COPT) $(M65DBG_INCLUDES) -o $@ $(M65DBG_SOURCES) $(M65DBG_LIBRARIES)
 
 $(BINDIR)/m65dbg_intel.osx:	$(M65DBG_SOURCES) $(M65DBG_HEADERS) conan_mac Makefile
 	$(CC) $(MACINTELCOPT) -Iinclude -o $@ $(M65DBG_SOURCES) $(M65DEBUG_READLINE)
@@ -778,24 +808,25 @@ $(BINDIR)/m65dbg_arm.osx:	$(M65DBG_SOURCES) $(M65DBG_HEADERS) conan_mac Makefile
 	$(CC) $(MACARMCOPT) -Iinclude -o $@ $(M65DBG_SOURCES) $(M65DEBUG_READLINE)
 
 $(BINDIR)/m65dbg.exe:	win_build_check $(M65DBG_SOURCES) $(M65DBG_HEADERS) conan_win Makefile
-	$(WINCC) $(WINCOPT) $(M65DBG_INCLUDES) -o $(BINDIR)/m65dbg.exe $(M65DBG_SOURCES) $(M65DBG_LIBRARIES) $(BUILD_STATIC) -lwsock32 -lws2_32 -Wl,-Bdynamic
+	$(WINCC) $(WINCOPT) $(M65DBG_INCLUDES) -o $@ $(M65DBG_SOURCES) $(M65DBG_LIBRARIES) $(BUILD_STATIC) -lwsock32 -lws2_32 -Wl,-Bdynamic
 
 #-----------------------------------------------------------------------------
 
 ##
 ## ========== etherload ==========
 ##
-ETHERLOAD_SOURCES = $(TOOLDIR)/etherload/etherload.c \
-		$(TOOLDIR)/etherload/ethlet_dma_load.c \
-		$(TOOLDIR)/etherload/ethlet_all_done_basic2.c \
-		$(TOOLDIR)/etherload/ethlet_all_done_basic65.c \
-		$(TOOLDIR)/etherload/ethlet_all_done_jump.c \
-		$(TOOLDIR)/logging.c \
-		$(TOOLDIR)/version.c
-ETHERLOAD_HEADERS = $(TOOLDIR)/etherload/ethlet_dma_load_map.h \
-		$(TOOLDIR)/etherload/ethlet_all_done_basic2_map.h \
-		$(TOOLDIR)/etherload/ethlet_all_done_basic65_map.h \
-		$(TOOLDIR)/etherload/ethlet_all_done_jump_map.h
+ETHERLOAD_SOURCES=	$(TOOLDIR)/etherload/etherload.c \
+			$(TOOLDIR)/etherload/etherload_common.c \
+			$(TOOLDIR)/etherload/ethlet_dma_load.c \
+			$(TOOLDIR)/etherload/ethlet_all_done_basic2.c \
+			$(TOOLDIR)/etherload/ethlet_all_done_basic65.c \
+			$(TOOLDIR)/etherload/ethlet_all_done_jump.c \
+			$(TOOLDIR)/logging.c \
+			$(TOOLDIR)/version.c
+ETHERLOAD_HEADERS=	$(TOOLDIR)/etherload/ethlet_dma_load_map.h \
+			$(TOOLDIR)/etherload/ethlet_all_done_basic2_map.h \
+			$(TOOLDIR)/etherload/ethlet_all_done_basic65_map.h \
+			$(TOOLDIR)/etherload/ethlet_all_done_jump_map.h
 ETHERLOAD_INCLUDES = -I/usr/local/include -Iinclude
 ETHERLOAD_LIBRARIES = -lm
 
@@ -805,7 +836,7 @@ $(TOOLDIR)/etherload/ethlet_%.c:	$(TOOLDIR)/etherload/ethlet_%.bin $(BINDIR)/bin
 $(TOOLDIR)/etherload/%_map.h:	$(TOOLDIR)/etherload/%.map $(BINDIR)/map2h Makefile
 	$(BINDIR)/map2h $(TOOLDIR)/etherload/$*.map $* $(TOOLDIR)/etherload/$*_map.h
 
-$(BINDIR)/etherload:	$(ETHERLOAD_SOURCES) $(ETHERLOAD_HEADERS) Makefile
+$(BINDIR)/etherload:	$(ETHERLOAD_SOURCES) $(ETHERLOAD_HEADERS) include/*.h Makefile
 	$(CC) $(COPT) -o $(BINDIR)/etherload $(ETHERLOAD_SOURCES) $(ETHERLOAD_INCLUDES) $(ETHERLOAD_LIBRARIES)
 
 $(BINDIR)/etherload_intel.osx:	$(ETHERLOAD_SOURCES) $(ETHERLOAD_HEADERS) conan_mac Makefile
@@ -814,5 +845,5 @@ $(BINDIR)/etherload_intel.osx:	$(ETHERLOAD_SOURCES) $(ETHERLOAD_HEADERS) conan_m
 $(BINDIR)/etherload_arm.osx:	$(ETHERLOAD_SOURCES) $(ETHERLOAD_HEADERS) conan_mac Makefile
 	$(CC) $(MACARMCOPT) -Iinclude -o $@ $(ETHERLOAD_SOURCES) $(ETHERLOAD_INCLUDES) $(ETHERLOAD_LIBRARIES)
 
-$(BINDIR)/etherload.exe:	win_build_check $(ETHERLOAD_SOURCES) $(ETHERLOAD_HEADERS) conan_win Makefile
+$(BINDIR)/etherload.exe:	win_build_check $(ETHERLOAD_SOURCES) $(ETHERLOAD_HEADERS) include/*.h conan_win Makefile
 	$(WINCC) $(WINCOPT) -o $(BINDIR)/etherload $(ETHERLOAD_SOURCES) $(ETHERLOAD_INCLUDES) $(ETHERLOAD_LIBRARIES) -lwsock32
