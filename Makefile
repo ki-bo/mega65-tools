@@ -196,8 +196,8 @@ GTESTFILESEXE=	$(GTESTBINDIR)/mega65_ftp.test.exe \
 		$(GTESTBINDIR)/bit2core.test.exe
 
 # all dependencies
-MEGA65LIBCDIR= $(SRCDIR)/mega65-libc/cc65
-MEGA65LIBCLIB= $(MEGA65LIBCDIR)/libmega65.a
+MEGA65LIBCDIR= $(SRCDIR)/mega65-libc
+MEGA65LIBCLIB= $(MEGA65LIBCDIR)/build/src/libmega65libc.a
 MEGA65LIBCINC= -I $(MEGA65LIBCDIR)/include
 
 # TOOLS omits TOOLSMAC. Linux users can make all. To make Mac binaries, use
@@ -394,10 +394,10 @@ $(CBMCONVERT):
 	$(SUBMODULEUPDATE)
 	( cd cbmconvert && make -f Makefile.unix )
 
-$(MEGA65LIBCLIB):
-	$(SUBMODULEUPDATE)
-	make -C src/mega65-libc cc65
-	make -C src/mega65-libc clean
+#$(MEGA65LIBCLIB):
+#	$(SUBMODULEUPDATE)
+#	make -C src/mega65-libc cc65
+#	make -C src/mega65-libc clean
 
 /usr/bin/convert:
 	echo "Could not find the program 'convert'. Try the following:"
@@ -754,14 +754,15 @@ $(LIBEXECDIR)/ftphelper.bin:	$(TOOLDIR)/ftphelper.a65
 	$(OPHIS) $(OPHISOPT) $(TOOLDIR)/ftphelper.a65
 
 $(UTILDIR)/remotesd.prg:       $(UTILDIR)/remotesd.c $(CC65) $(MEGA65LIBCLIB)
-	$(CL65) $(MEGA65LIBCINC) -O -o $*.prg --listing $*.list --mapfile $*.map --add-source $< $(MEGA65LIBCLIB)
+#	$(CL65) $(MEGA65LIBCINC) -O -o $*.prg --listing $*.list --mapfile $*.map --add-source $< $(MEGA65LIBCLIB)
+	/Users/robert/llvm-mos/bin/mos-mega65-clang $(MEGA65LIBCINC) -Os -Wall -Wextra -Wconversion -o $*.prg $< $(MEGA65LIBCLIB)
 
 $(TOOLDIR)/ftphelper.c:	$(UTILDIR)/remotesd.prg $(TOOLDIR)/bin2c
 	$(TOOLDIR)/bin2c $(UTILDIR)/remotesd.prg helperroutine $(TOOLDIR)/ftphelper.c
 
-$(UTILDIR)/remotesd_eth.prg:       $(UTILDIR)/remotesd_eth.c $(UTILDIR)/remotesd_eth_asm.s $(UTILDIR)/checksum.s $(UTILDIR)/ip_checksum_recv.s $(CC65) $(MEGA65LIBCLIB)
-	$(CL65ONLY) --config $(UTILDIR)/remotesd_eth_cl65.cfg $(MEGA65LIBCINC) -O -g -o $*.prg --listing $*.list --mapfile $*.map --add-source $(UTILDIR)/remotesd_eth_asm.s $(UTILDIR)/checksum.s $(UTILDIR)/ip_checksum_recv.s $< $(MEGA65LIBCLIB)
-
+$(UTILDIR)/remotesd_eth.prg:       $(UTILDIR)/remotesd_eth.c $(UTILDIR)/remotesd_eth_asm_llvm.s $(UTILDIR)/checksum_llvm.s $(UTILDIR)/ip_checksum_recv_llvm.s $(CC65) $(MEGA65LIBCLIB) Makefile
+#	$(CL65ONLY) --config $(UTILDIR)/remotesd_eth_cl65.cfg $(MEGA65LIBCINC) -O -g -o $*.prg --listing $*.list --mapfile $*.map --add-source $(UTILDIR)/remotesd_eth_asm.s $(UTILDIR)/checksum.s $(UTILDIR)/ip_checksum_recv.s $< $(MEGA65LIBCLIB)
+	/Users/robert/llvm-mos/bin/mos-mega65-clang $(MEGA65LIBCINC) -T $(UTILDIR)/remotesd_eth.ld -Os -flto -fnonreentrant -Wall -Wextra -Wconversion -o $*.prg $(UTILDIR)/remotesd_eth_asm_llvm.s $(UTILDIR)/checksum_llvm.s $(UTILDIR)/ip_checksum_recv_llvm.s $< $(MEGA65LIBCLIB)
 
 $(TOOLDIR)/ftphelper_eth.c:	$(UTILDIR)/remotesd_eth.prg $(TOOLDIR)/bin2c
 	$(TOOLDIR)/bin2c $(UTILDIR)/remotesd_eth.prg helperroutine_eth $(TOOLDIR)/ftphelper_eth.c
@@ -785,11 +786,11 @@ MEGA65FTP_SRC=	$(TOOLDIR)/mega65_ftp.c \
 		$(TOOLDIR)/etherload/etherload_common.c \
 		$(TOOLDIR)/etherload/ethlet_set_ip_address.c \
 		$(TOOLDIR)/etherload/ethlet_dma_load.c \
-		$(TOOLDIR)/etherload/ethlet_all_done_basic2.c
+		$(TOOLDIR)/etherload/ethlet_all_done_basic65.c
 
 MEGA65FTP_HDR=	$(TOOLDIR)/etherload/ethlet_set_ip_address_map.h \
 		$(TOOLDIR)/etherload/ethlet_dma_load_map.h \
-		$(TOOLDIR)/etherload/ethlet_all_done_basic2_map.h
+		$(TOOLDIR)/etherload/ethlet_all_done_basic65_map.h
 
 # Gives two targets of:
 # - gtest/bin/mega65_ftp.test

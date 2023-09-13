@@ -12,12 +12,12 @@
 #include <string.h>
 #include <stdint.h>
 
-#include <hal.h>
-#include <memory.h>
-#include <dirent.h>
-#include <fileio.h>
-#include <debug.h>
-#include <random.h>
+#include <mega65/hal.h>
+#include <mega65/memory.h>
+#include <mega65/dirent.h>
+#include <mega65/fileio.h>
+#include <mega65/debug.h>
+#include <mega65/random.h>
 
 // Set to 1 to show debug messages
 #define DEBUG 0
@@ -27,12 +27,24 @@
 //#define SERIAL_DELAY for(aa=0;aa!=5;aa++) continue;
 uint16_t aa;
 // Write a char to the serial monitor interface
+#ifdef __CC65__  
 #define SERIAL_WRITE(the_char)                                                                                              \
-  {                                                                                                                         \
+  {                                                                                                                         \                         
+                                                                                                                            \
     __asm__("LDA %v", the_char);                                                                                            \
     __asm__("STA $D643");                                                                                                   \
     __asm__("NOP");                                                                                                         \
   }
+#else
+#define SERIAL_WRITE(the_char)                                                                                              \
+  {                                                                                                                         \
+    asm volatile("st%0 $d643\n"                                                                                             \
+                 "nop\n"                                                                                                    \
+                 : /* no output operands */                                                                                 \
+                 : "a"(the_char) /* input operands */                                                                       \
+                 : "a" /* clobber list */);                                                                                 \
+  }
+#endif
 
 void press_key(void)
 {

@@ -45,7 +45,7 @@
 #include <stdio.h>
 
 #include "m65common.h"
-#include "etherload/ethlet_all_done_basic2_map.h"
+#include "etherload/ethlet_all_done_basic65_map.h"
 #include "filehost.h"
 #include "diskman.h"
 #include "dirtymock.h"
@@ -208,8 +208,8 @@ extern unsigned int helperroutine_len;
 extern unsigned char helperroutine[];
 extern unsigned int helperroutine_eth_len;
 extern unsigned char helperroutine_eth[];
-extern char ethlet_all_done_basic2[];
-extern int ethlet_all_done_basic2_len;
+extern char ethlet_all_done_basic65[];
+extern int ethlet_all_done_basic65_len;
 int helper_installed = 0;
 int job_done;
 int sectors_written;
@@ -814,7 +814,7 @@ int DIRTYMOCK(main)(int argc, char **argv)
   else if (ethernet_mode) {
     unsigned char *helper_ptr = helperroutine_eth + 2;
     int bytes = helperroutine_eth_len - 2;
-    int address = 0x0801;
+    int address = 0x2001;
     int block_size = 1024;
 
     if (etherload_init(ip_address, NULL)) {
@@ -840,16 +840,17 @@ int DIRTYMOCK(main)(int argc, char **argv)
     log_info("Helper routine transfer complete");
 
     // patch in end address
-    ethlet_all_done_basic2[ethlet_all_done_basic2_offset_data_end_address] = 0x01;
-    ethlet_all_done_basic2[ethlet_all_done_basic2_offset_data_end_address + 1] = 0x08;
+    // patch in end address
+    ethlet_all_done_basic65[ethlet_all_done_basic65_offset_autostart] = 0x01;
+    ethlet_all_done_basic65[ethlet_all_done_basic65_offset_autostart + 1] = 0x20;
 
     // patch in do_run
-    ethlet_all_done_basic2[ethlet_all_done_basic2_offset_do_run] = 1;
+     ethlet_all_done_basic65[ethlet_all_done_basic65_offset_autostart + 2] = 1;
 
     // disable cartridge signature detection
-    ethlet_all_done_basic2[ethlet_all_done_basic2_offset_enable_cart_signature] = 0;
+    ethlet_all_done_basic65[ethlet_all_done_basic65_offset_autostart + 3] = 0;
 
-    send_ethlet((uint8_t *)ethlet_all_done_basic2, ethlet_all_done_basic2_len);
+    send_ethlet((const uint8_t *)ethlet_all_done_basic65, ethlet_all_done_basic65_len);
 
     sockfd = ethl_get_socket();
     servaddr = ethl_get_server_addr();

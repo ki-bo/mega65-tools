@@ -1,16 +1,18 @@
-#include <debug.h>
+#include <mega65/debug.h>
 #include <string.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <memory.h>
+#include <mega65/memory.h>
+#include <mega65/conio.h>
 
 #define ETH_RX_BUFFER 0xFFDE800L
 #define ETH_TX_BUFFER 0xFFDE800L
 #define ARP_REQUEST 0x0100 // big-endian for 0x0001
 #define ARP_REPLY 0x0200   // big-endian for 0x0002
 
-uint16_t fastcall ip_checksum_recv();
-uint16_t fastcall checksum_fast(uint16_t size);
+
+uint16_t ip_checksum_recv();
+uint16_t checksum_fast(uint16_t size);
 
 /**
  * @brief Copy a memory area using DMA with ETH I/O personality enabled.
@@ -25,10 +27,10 @@ uint16_t fastcall checksum_fast(uint16_t size);
  *
  * @note The function is implemented in assembly language in ip_checksum_recv.s.
 */
-void fastcall dma_copy_eth_io(void *src, void *dst, uint16_t size);
+void dma_copy_eth_io(void *src, void *dst, uint16_t size);
 
-uint8_t fastcall cmp_c000_c200();
-uint8_t fastcall cmp_c000_c800();
+uint8_t cmp_c000_c200();
+uint8_t cmp_c000_c800();
 
 typedef struct {
   uint8_t b[6];
@@ -131,10 +133,9 @@ typedef union {
   };
 } PACKET;
 
-#define NTOHS(x) (((uint16_t)x >> 8) | ((uint16_t)x << 8))
-#define HTONS(x) (((uint16_t)x >> 8) | ((uint16_t)x << 8))
+#define NTOHS(x) ((((uint16_t)x) >> 8) | (((uint16_t)x) << 8))
+#define HTONS(x) ((((uint16_t)x) >> 8) | (((uint16_t)x) << 8))
 
-uint8_t cpu_status;
 char msg[80];
 uint8_t quit_requested = 0;
 uint16_t last_eth_controller_reset_seq_no = 0;
@@ -245,15 +246,18 @@ void init(void)
 
 void init_screen()
 {
+  conioinit();
+  POKE(0xD02F, 0x45);
+  POKE(0xD02F, 0x54);
   // Cursor off
-  POKE(204, 0x80);
+  //POKE(204, 0x80);
 
   POKE(0xD020, 0);
   POKE(0xD021, 0);
   // clear screen memory
-  lfill(0x400, 0x20, 1000);
+  lfill(0x800, 0x20, 2000);
   // clear color ram
-  lfill(0xff80000, 5, 1000);
+  lfill(0xff80000, 5, 2000);
 
   print(1, 0, "mega65 ethernet file transfer helper.");
 
@@ -273,15 +277,15 @@ void init_screen()
 
 void print(uint8_t row, uint8_t col, char *text)
 {
-  uint16_t addr = 0x400u + 40u * row + col;
+  uint16_t addr = 0x800u + 80u * row + col;
 
-  lfill(addr, 0x20, 40 - col);
+  lfill(addr, 0x20, 80 - col);
   while (*text) {
-    *((char *)addr++) = *text++;
+    *((char *)addr++) = petsciitoscreencode(*text++);
     
-    if (addr > 0x7e8) {
+    /*if (addr > 0x7e8) {
       stop_fatal("print out of bounds error");
-    }
+    }*/
   }
 }
 
@@ -571,7 +575,7 @@ void multi_sector_write_next()
   static uint32_t verify_cache_position = 0x40000ul;
   static uint8_t i;
 
-  int cmd = 5; // Multi-sector mid
+  uint8_t cmd = 5; // Multi-sector mid
 
   if (slots_written > write_batch_max_id) {
     stop_fatal("error: slots written out of bounds");
@@ -1192,7 +1196,7 @@ void process()
       //POKE(0xD020, PEEK(0xD020) + 1);
       return;
     }
-    lcopy(0xffd6e00, (long)sector_buf, 0x200);
+    lcopy(0xffd6e00, (uint32_t)sector_buf, 0x200);
     sector_number_buf = sector_number_read;
     --batch_left;
     if (batch_left == 0) {
@@ -1223,11 +1227,12 @@ void process()
   get_new_job();
 }
 
-void main(void)
+int main(void)
 {
-  static uint8_t frame_cnt = 0;
-  static uint8_t last_frame_cnt = 0;
-  static uint8_t frames_elapsed = 0;
+  uint8_t frame_cnt = 0;
+  uint8_t last_frame_cnt = 0;
+  uint8_t frames_elapsed = 0;
+  uint8_t cpu_status;
 
   // Disable all interrupts
   asm("sei");
@@ -1237,9 +1242,17 @@ void main(void)
   while (1) {
     // continuously check whether irqs are still disabled
     // as these would mess up our program flow
+#ifdef __C65__
     __asm__("php");
     __asm__("pla");
     __asm__("sta %v", cpu_status);
+#else
+    asm volatile("php\n"
+                 "pla\n"                                                                                \
+                 : "=a"(cpu_status) /* output operands */                                                                                 \
+                 : /* no input operands */                                                                       \
+                 : "a" /* clobber list */); 
+#endif
     if (!(cpu_status & 0x04)) {
       stop_fatal("error: cpu irq enabled");
     }
