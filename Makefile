@@ -755,14 +755,14 @@ $(LIBEXECDIR)/ftphelper.bin:	$(TOOLDIR)/ftphelper.a65
 
 $(UTILDIR)/remotesd.prg:       $(UTILDIR)/remotesd.c $(CC65) $(MEGA65LIBCLIB)
 #	$(CL65) $(MEGA65LIBCINC) -O -o $*.prg --listing $*.list --mapfile $*.map --add-source $< $(MEGA65LIBCLIB)
-	/Users/robert/llvm-mos/bin/mos-mega65-clang $(MEGA65LIBCINC) -Os -Wall -Wextra -Wconversion -o $*.prg $< $(MEGA65LIBCLIB)
+	$(HOME)/llvm-mos/bin/mos-mega65-clang $(MEGA65LIBCINC) -Os -Wall -Wextra -Wconversion -o $*.prg $< $(MEGA65LIBCLIB)
 
 $(TOOLDIR)/ftphelper.c:	$(UTILDIR)/remotesd.prg $(TOOLDIR)/bin2c
 	$(TOOLDIR)/bin2c $(UTILDIR)/remotesd.prg helperroutine $(TOOLDIR)/ftphelper.c
 
 $(UTILDIR)/remotesd_eth.prg:       $(UTILDIR)/remotesd_eth.c $(UTILDIR)/remotesd_eth_asm_llvm.s $(UTILDIR)/checksum_llvm.s $(UTILDIR)/ip_checksum_recv_llvm.s $(CC65) $(MEGA65LIBCLIB) Makefile
 #	$(CL65ONLY) --config $(UTILDIR)/remotesd_eth_cl65.cfg $(MEGA65LIBCINC) -O -g -o $*.prg --listing $*.list --mapfile $*.map --add-source $(UTILDIR)/remotesd_eth_asm.s $(UTILDIR)/checksum.s $(UTILDIR)/ip_checksum_recv.s $< $(MEGA65LIBCLIB)
-	/Users/robert/llvm-mos/bin/mos-mega65-clang $(MEGA65LIBCINC) -T $(UTILDIR)/remotesd_eth.ld -Os -flto -fnonreentrant -Wall -Wextra -Wconversion -o $*.prg $(UTILDIR)/remotesd_eth_asm_llvm.s $(UTILDIR)/checksum_llvm.s $(UTILDIR)/ip_checksum_recv_llvm.s $< $(MEGA65LIBCLIB)
+	$(HOME)/llvm-mos/bin/mos-mega65-clang $(MEGA65LIBCINC) -g -T $(UTILDIR)/remotesd_eth.ld -Os -flto -fnonreentrant -Wall -Wextra -Wconversion -o $*.prg $(UTILDIR)/remotesd_eth_asm_llvm.s $(UTILDIR)/checksum_llvm.s $(UTILDIR)/ip_checksum_recv_llvm.s $< $(MEGA65LIBCLIB)
 
 $(TOOLDIR)/ftphelper_eth.c:	$(UTILDIR)/remotesd_eth.prg $(TOOLDIR)/bin2c
 	$(TOOLDIR)/bin2c $(UTILDIR)/remotesd_eth.prg helperroutine_eth $(TOOLDIR)/ftphelper_eth.c
